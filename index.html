@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Checklist de Suplementos</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app-header card">
+      <h1>Hoy</h1>
+      <p id="currentDate" class="date"></p>
+      <p id="progressText" class="progress-text">0 de 0 tomados</p>
+      <div class="progress"><div id="progressBar" class="progress-bar"></div></div>
+      <p id="completionMsg" class="completion-msg" hidden>Checklist completa ✅</p>
+    </header>
+
+    <section class="controls card">
+      <button id="addBtn" class="btn btn-primary">Agregar suplemento</button>
+      <button id="resetBtn" class="btn">Resetear día</button>
+      <button id="duplicateBtn" class="btn">Duplicar ayer → hoy</button>
+      <button id="exportBtn" class="btn">Exportar JSON</button>
+      <label class="btn file-btn" for="importInput">Importar JSON</label>
+      <input id="importInput" type="file" accept="application/json" hidden />
+    </section>
+
+    <section class="history card">
+      <h2>Historial</h2>
+      <select id="historySelect"></select>
+      <button id="loadHistoryBtn" class="btn">Ver día seleccionado</button>
+      <button id="backTodayBtn" class="btn">Volver a hoy</button>
+    </section>
+
+    <section id="groupsContainer" class="groups"></section>
+  </main>
+
+  <dialog id="supplementDialog">
+    <form id="supplementForm" method="dialog" class="dialog-form">
+      <h3 id="dialogTitle">Agregar suplemento</h3>
+      <input type="hidden" id="supplementId" />
+      <label>Nombre <input id="nameInput" required /></label>
+      <label>Dosis <input id="doseInput" required /></label>
+      <label>Frecuencia
+        <select id="frequencyTypeInput">
+          <option value="daily">Diaria</option>
+          <option value="specific_days">Días específicos por semana</option>
+          <option value="weekly">Semanal (1 día)</option>
+          <option value="custom">Personalizada</option>
+        </select>
+      </label>
+      <label>Días de la semana
+        <div id="weekDaysInput" class="weekday-grid"></div>
+      </label>
+      <label>Tomas por día <input id="dosesPerDayInput" type="number" min="1" value="1" /></label>
+      <label>Momentos del día (separados por coma)
+        <input id="timesInput" placeholder="desayuno, comida, cena" />
+      </label>
+      <label>Notas <textarea id="notesInput" rows="2"></textarea></label>
+      <label class="checkline"><input type="checkbox" id="optionalInput" /> Opcional</label>
+      <label class="checkline"><input type="checkbox" id="activeInput" checked /> Activo</label>
+      <div class="dialog-actions">
+        <button type="button" id="cancelDialogBtn" class="btn">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="script.js"></script>
+</body>
+</html>
