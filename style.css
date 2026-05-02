@@ -78,3 +78,5 @@ input, select, textarea {
   .app { padding: 24px; }
   .controls { grid-template-columns: repeat(3, 1fr); }
 }
+
+.weekday-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.weekday-grid label{font-size:.85rem;display:flex;align-items:center;gap:4px}

@@ -1,205 +1,132 @@
-const STORAGE_KEY = "supplementChecklistDataV1";
+const STORAGE_KEY = "supplementChecklistDataV2";
+const WEEK = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
 const defaultSupplements = [
-  { name: "Complejo B", dose: "1 cápsula", time: "Mañana con desayuno", notes: "", optional: false },
-  { name: "Zinc", dose: "20 mg", time: "Mañana con desayuno", notes: "", optional: false },
-  { name: "Vitamina D3", dose: "según dosis del frasco", time: "Mañana con desayuno", notes: "", optional: false },
-  { name: "Omega-3", dose: "según dosis del frasco", time: "Mañana con desayuno", notes: "", optional: false },
-  { name: "Selenio", dose: "100–200 mcg", time: "Mediodía con comida", notes: "", optional: false },
-  { name: "Glucosamina", dose: "según dosis del frasco", time: "Mediodía con comida", notes: "", optional: false },
-  { name: "Creatina", dose: "5 g", time: "Post-entrenamiento o flexible", notes: "", optional: false },
-  { name: "Teanina", dose: "según dosis del frasco", time: "Tarde / relajación", notes: "", optional: false },
-  { name: "Colágeno", dose: "según dosis del frasco", time: "Noche opcional", notes: "", optional: true },
+  { name: "Complejo B", dose: "1 cápsula", frequencyType: "daily", daysOfWeek: [], dosesPerDay: 1, times: ["desayuno"], notes: "", optional: false, active: true },
+  { name: "Omega-3", dose: "según etiqueta", frequencyType: "daily", daysOfWeek: [], dosesPerDay: 1, times: ["desayuno o comida"], notes: "", optional: false, active: true },
+  { name: "Zinc + Selenio", dose: "1 cápsula", frequencyType: "daily", daysOfWeek: [], dosesPerDay: 1, times: ["comida"], notes: "", optional: false, active: true },
+  { name: "Creatina", dose: "3–5 g", frequencyType: "daily", daysOfWeek: [], dosesPerDay: 1, times: ["después del gym"], notes: "", optional: false, active: true },
+  { name: "Teanina", dose: "según etiqueta", frequencyType: "custom", daysOfWeek: [], dosesPerDay: 1, times: ["noche"], notes: "diaria o según necesidad", optional: true, active: true },
+  { name: "Glucosamina", dose: "3 tabletas (total diario)", frequencyType: "daily", daysOfWeek: [], dosesPerDay: 3, times: ["desayuno", "comida", "cena"], notes: "Glucosamina sulfato 900 mg, MSM 900 mg, condroitina sulfato 150 mg", optional: false, active: true },
+  { name: "Vitamina D3", dose: "1 cápsula por toma", frequencyType: "specific_days", daysOfWeek: [1, 3, 5], dosesPerDay: 1, times: ["desayuno"], notes: "Tomar con comida que tenga grasa", optional: false, active: true },
 ];
 
 const state = { viewDate: todayKey(), data: loadData() };
-if (!state.data.supplements?.length) bootstrapSupplements();
-ensureDateEntry(state.viewDate);
+if (!state.data.supplements?.length) state.data.supplements = defaultSupplements.map(s => ({ id: uid(), ...s }));
+ensureDate(state.viewDate);
+setupWeekdays();
+bindEvents();
 render();
 
+function uid() { return crypto.randomUUID?.() || String(Date.now() + Math.random()); }
 function todayKey() { return new Date().toISOString().slice(0, 10); }
-function uid() { return crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()); }
+function dateToDayIndex(k) { return new Date(k + "T00:00:00").getDay(); }
+function ensureDate(d) { state.data.checkByDate[d] ||= {}; save(); }
+function loadData() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { supplements: [], checkByDate: {} }; } catch { return { supplements: [], checkByDate: {} }; } }
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); }
 
-function loadData() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { supplements: [], checkByDate: {} };
-  } catch {
-    return { supplements: [], checkByDate: {} };
+function shouldShowToday(s, dateKey) {
+  if (!s.active) return false;
+  const day = dateToDayIndex(dateKey);
+  if (s.frequencyType === "daily" || s.frequencyType === "custom") return true;
+  if (s.frequencyType === "specific_days") return s.daysOfWeek.includes(day);
+  if (s.frequencyType === "weekly") return s.daysOfWeek[0] === day;
+  return true;
+}
+
+function todayDoses(dateKey = state.viewDate) {
+  const doses = [];
+  state.data.supplements.forEach(s => {
+    if (!shouldShowToday(s, dateKey)) return;
+    for (let i = 0; i < s.dosesPerDay; i++) {
+      const moment = s.times[i] || s.times[0] || `toma ${i + 1}`;
+      doses.push({ key: `${s.id}__${i}`, sup: s, moment });
+    }
+  });
+  return doses;
+}
+
+function nextDoseLabel(s, fromDate = state.viewDate) {
+  if (s.frequencyType === "daily" || s.frequencyType === "custom") return "Hoy";
+  for (let offset = 0; offset < 7; offset++) {
+    const d = new Date(fromDate + "T00:00:00"); d.setDate(d.getDate() + offset);
+    const idx = d.getDay();
+    if ((s.frequencyType === "specific_days" && s.daysOfWeek.includes(idx)) || (s.frequencyType === "weekly" && s.daysOfWeek[0] === idx)) return WEEK[idx];
   }
+  return "—";
 }
-function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data)); refreshHistory(); }
-function ensureDateEntry(date) { state.data.checkByDate[date] ||= {}; saveData(); }
-
-function bootstrapSupplements() {
-  state.data.supplements = defaultSupplements.map(s => ({ id: uid(), ...s }));
-  saveData();
-}
-
-function getChecks(date = state.viewDate) { return state.data.checkByDate[date] || {}; }
-function setCheck(id, checked) { ensureDateEntry(state.viewDate); state.data.checkByDate[state.viewDate][id] = checked; saveData(); render(); }
 
 function render() {
-  const dateEl = document.getElementById("currentDate");
-  dateEl.textContent = new Date(state.viewDate + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-
+  ensureDate(state.viewDate);
+  document.getElementById("currentDate").textContent = new Date(state.viewDate + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const checks = state.data.checkByDate[state.viewDate] || {};
+  const doses = todayDoses();
+  const groups = {};
+  doses.forEach(d => { (groups[d.moment] ||= []).push(d); });
   const container = document.getElementById("groupsContainer");
-  container.innerHTML = "";
-  const grouped = groupByTime(state.data.supplements);
-  const checks = getChecks();
-
-  Object.entries(grouped).forEach(([time, items]) => {
-    const section = document.createElement("section");
-    section.className = "card group";
-    section.innerHTML = `<h3>${time}</h3>`;
-
-    items.forEach(item => {
-      const div = document.createElement("article");
-      div.className = `supplement ${item.optional ? "optional" : ""}`;
-      div.innerHTML = `
-        <input type="checkbox" ${checks[item.id] ? "checked" : ""} aria-label="Tomado ${item.name}">
-        <div class="meta">
-          <strong>${item.name} ${item.optional ? "(opcional)" : ""}</strong>
-          <small>Dosis: ${item.dose}</small>
-          <small>${item.notes || "Sin notas"}</small>
-        </div>
-        <div class="actions">
-          <button data-edit="${item.id}" class="btn">Editar</button>
-          <button data-delete="${item.id}" class="btn">Borrar</button>
-        </div>`;
-      div.querySelector("input").addEventListener("change", e => setCheck(item.id, e.target.checked));
-      div.querySelector("[data-edit]").addEventListener("click", () => openDialog(item));
-      div.querySelector("[data-delete]").addEventListener("click", () => deleteSupplement(item.id));
-      section.appendChild(div);
+  container.innerHTML = Object.keys(groups).length ? "" : `<section class='card'><p>No hay suplementos para hoy.</p></section>`;
+  Object.entries(groups).forEach(([moment, items]) => {
+    const sec = document.createElement("section"); sec.className = "card group"; sec.innerHTML = `<h3>${moment}</h3>`;
+    items.forEach(d => {
+      const checked = !!checks[d.key];
+      const nextTxt = d.sup.frequencyType !== "daily" ? `<small>Próxima toma: ${nextDoseLabel(d.sup)}</small>` : "";
+      const el = document.createElement("article");
+      el.className = `supplement ${d.sup.optional ? "optional" : ""}`;
+      el.innerHTML = `<input type='checkbox' ${checked ? "checked" : ""}><div class='meta'><strong>${d.sup.name} — ${d.moment}</strong><small>Dosis: ${d.sup.dose}</small>${nextTxt}<small>${d.sup.notes || ""}</small></div><div class='actions'><button class='btn' data-edit='${d.sup.id}'>Editar</button><button class='btn' data-delete='${d.sup.id}'>Borrar</button></div>`;
+      el.querySelector("input").addEventListener("change", e => { state.data.checkByDate[state.viewDate][d.key] = e.target.checked; save(); updateProgress(); });
+      el.querySelector("[data-edit]").onclick = () => openDialog(d.sup);
+      el.querySelector("[data-delete]").onclick = () => removeSupplement(d.sup.id);
+      sec.appendChild(el);
     });
-
-    container.appendChild(section);
+    container.appendChild(sec);
   });
-
-  updateProgress();
   refreshHistory();
-}
-
-function groupByTime(items) {
-  return items.reduce((acc, item) => {
-    (acc[item.time] ||= []).push(item);
-    return acc;
-  }, {});
+  updateProgress();
 }
 
 function updateProgress() {
-  const checks = getChecks();
-  const required = state.data.supplements.filter(s => !s.optional);
-  const completed = required.filter(s => checks[s.id]).length;
-  const total = required.length;
-  document.getElementById("progressText").textContent = `${completed} de ${total} tomados`;
-  document.getElementById("progressBar").style.width = `${total ? (completed / total) * 100 : 0}%`;
-  document.getElementById("completionMsg").hidden = completed !== total || total === 0;
+  const checks = state.data.checkByDate[state.viewDate] || {};
+  const doses = todayDoses();
+  const req = doses.filter(d => !d.sup.optional);
+  const done = req.filter(d => checks[d.key]).length;
+  document.getElementById("progressText").textContent = `${done} de ${req.length} tomados`;
+  document.getElementById("progressBar").style.width = `${req.length ? (done / req.length) * 100 : 0}%`;
+  document.getElementById("completionMsg").hidden = !(req.length && done === req.length);
 }
 
-function openDialog(item = null) {
-  const dialog = document.getElementById("supplementDialog");
-  document.getElementById("dialogTitle").textContent = item ? "Editar suplemento" : "Agregar suplemento";
-  document.getElementById("supplementId").value = item?.id || "";
-  document.getElementById("nameInput").value = item?.name || "";
-  document.getElementById("doseInput").value = item?.dose || "";
-  document.getElementById("timeInput").value = item?.time || "Mañana con desayuno";
-  document.getElementById("notesInput").value = item?.notes || "";
-  document.getElementById("optionalInput").checked = !!item?.optional;
-  dialog.showModal();
+function setupWeekdays() {
+  document.getElementById("weekDaysInput").innerHTML = WEEK.map((d, i) => `<label><input type='checkbox' value='${i}'> ${d.slice(0,3)}</label>`).join("");
+}
+function selectedDays() { return [...document.querySelectorAll("#weekDaysInput input:checked")].map(c => Number(c.value)); }
+function setSelectedDays(days) { document.querySelectorAll("#weekDaysInput input").forEach(c => c.checked = days.includes(Number(c.value))); }
+
+function openDialog(s = null) {
+  supplementDialog.showModal();
+  dialogTitle.textContent = s ? "Editar suplemento" : "Agregar suplemento";
+  supplementId.value = s?.id || ""; nameInput.value = s?.name || ""; doseInput.value = s?.dose || "";
+  frequencyTypeInput.value = s?.frequencyType || "daily"; dosesPerDayInput.value = s?.dosesPerDay || 1;
+  timesInput.value = s?.times?.join(", ") || ""; notesInput.value = s?.notes || "";
+  optionalInput.checked = !!s?.optional; activeInput.checked = s?.active ?? true; setSelectedDays(s?.daysOfWeek || []);
 }
 
-function deleteSupplement(id) {
-  if (!confirm("¿Borrar suplemento?")) return;
-  state.data.supplements = state.data.supplements.filter(s => s.id !== id);
-  Object.values(state.data.checkByDate).forEach(day => delete day[id]);
-  saveData();
-  render();
-}
+function removeSupplement(id) { if (!confirm("¿Borrar suplemento?")) return; state.data.supplements = state.data.supplements.filter(s => s.id !== id); Object.values(state.data.checkByDate).forEach(day => Object.keys(day).forEach(k => k.startsWith(id+"__") && delete day[k])); save(); render(); }
+function refreshHistory() { const sel = historySelect; const dates = Object.keys(state.data.checkByDate).sort((a,b)=>b.localeCompare(a)); sel.innerHTML = dates.map(d=>`<option value='${d}'>${d}</option>`).join(""); sel.value = state.viewDate; }
 
-function refreshHistory() {
-  const sel = document.getElementById("historySelect");
-  const dates = Object.keys(state.data.checkByDate).sort((a, b) => b.localeCompare(a));
-  sel.innerHTML = dates.map(d => `<option value="${d}">${d}</option>`).join("");
-  sel.value = state.viewDate;
-}
-
-document.getElementById("addBtn").addEventListener("click", () => openDialog());
-document.getElementById("cancelDialogBtn").addEventListener("click", () => document.getElementById("supplementDialog").close());
-document.getElementById("supplementForm").addEventListener("submit", e => {
-  e.preventDefault();
-  const id = document.getElementById("supplementId").value;
-  const payload = {
-    id: id || uid(),
-    name: document.getElementById("nameInput").value.trim(),
-    dose: document.getElementById("doseInput").value.trim(),
-    time: document.getElementById("timeInput").value,
-    notes: document.getElementById("notesInput").value.trim(),
-    optional: document.getElementById("optionalInput").checked,
+function bindEvents() {
+  addBtn.onclick = () => openDialog();
+  cancelDialogBtn.onclick = () => supplementDialog.close();
+  supplementForm.onsubmit = e => {
+    e.preventDefault();
+    const payload = { id: supplementId.value || uid(), name: nameInput.value.trim(), dose: doseInput.value.trim(), frequencyType: frequencyTypeInput.value, daysOfWeek: selectedDays(), dosesPerDay: Math.max(1, Number(dosesPerDayInput.value) || 1), times: timesInput.value.split(",").map(s => s.trim()).filter(Boolean), notes: notesInput.value.trim(), optional: optionalInput.checked, active: activeInput.checked };
+    if (!payload.name || !payload.dose) return;
+    const i = state.data.supplements.findIndex(s => s.id === payload.id);
+    if (i >= 0) state.data.supplements[i] = payload; else state.data.supplements.push(payload);
+    save(); supplementDialog.close(); render();
   };
-  if (!payload.name || !payload.dose) return;
-  if (id) {
-    const idx = state.data.supplements.findIndex(s => s.id === id);
-    state.data.supplements[idx] = payload;
-  } else state.data.supplements.push(payload);
-  saveData();
-  document.getElementById("supplementDialog").close();
-  render();
-});
-
-document.getElementById("resetBtn").addEventListener("click", () => {
-  if (!confirm("¿Resetear checklist del día?")) return;
-  state.data.checkByDate[state.viewDate] = {};
-  saveData(); render();
-});
-
-document.getElementById("duplicateBtn").addEventListener("click", () => {
-  const today = todayKey();
-  const y = new Date(today + "T00:00:00");
-  y.setDate(y.getDate() - 1);
-  const yesterday = y.toISOString().slice(0, 10);
-  if (!state.data.checkByDate[yesterday]) return alert("No hay registro de ayer.");
-  state.data.checkByDate[today] = { ...state.data.checkByDate[yesterday] };
-  state.viewDate = today;
-  saveData(); render();
-});
-
-document.getElementById("loadHistoryBtn").addEventListener("click", () => {
-  const d = document.getElementById("historySelect").value;
-  if (!d) return;
-  state.viewDate = d;
-  ensureDateEntry(d);
-  render();
-});
-
-document.getElementById("backTodayBtn").addEventListener("click", () => {
-  state.viewDate = todayKey();
-  ensureDateEntry(state.viewDate);
-  render();
-});
-
-document.getElementById("exportBtn").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `suplementos-${todayKey()}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-});
-
-document.getElementById("importInput").addEventListener("change", async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try {
-    const parsed = JSON.parse(await file.text());
-    if (!Array.isArray(parsed.supplements) || typeof parsed.checkByDate !== "object") throw new Error();
-    state.data = parsed;
-    state.viewDate = todayKey();
-    ensureDateEntry(state.viewDate);
-    saveData(); render();
-    alert("Datos importados correctamente.");
-  } catch {
-    alert("JSON inválido.");
-  } finally {
-    e.target.value = "";
-  }
-});
+  resetBtn.onclick = () => { if (confirm("¿Resetear día?")) { state.data.checkByDate[state.viewDate] = {}; save(); render(); } };
+  duplicateBtn.onclick = () => { const t = new Date(todayKey()+"T00:00:00"); t.setDate(t.getDate()-1); const y = t.toISOString().slice(0,10); if (!state.data.checkByDate[y]) return alert("No hay registro de ayer"); state.data.checkByDate[todayKey()] = { ...state.data.checkByDate[y] }; state.viewDate = todayKey(); save(); render(); };
+  loadHistoryBtn.onclick = () => { state.viewDate = historySelect.value || todayKey(); render(); };
+  backTodayBtn.onclick = () => { state.viewDate = todayKey(); render(); };
+  exportBtn.onclick = () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(state.data, null, 2)], { type: "application/json" })); a.download = `suplementos-${todayKey()}.json`; a.click(); };
+  importInput.onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const p = JSON.parse(await f.text()); state.data = p; ensureDate(todayKey()); state.viewDate = todayKey(); save(); render(); alert("Importado"); } catch { alert("JSON inválido"); } e.target.value = ""; };
+}
