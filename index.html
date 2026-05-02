@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Checklist de Suplementos</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app-header card">
+      <h1>Suplementos diarios</h1>
+      <p id="currentDate" class="date"></p>
+      <p id="progressText" class="progress-text">0 de 0 tomados</p>
+      <div class="progress" aria-label="Progreso diario">
+        <div id="progressBar" class="progress-bar"></div>
+      </div>
+      <p id="completionMsg" class="completion-msg" hidden>Checklist completa ✅</p>
+    </header>
+
+    <section class="controls card">
+      <button id="addBtn" class="btn btn-primary">Agregar suplemento</button>
+      <button id="resetBtn" class="btn">Resetear día</button>
+      <button id="duplicateBtn" class="btn">Duplicar ayer → hoy</button>
+      <button id="exportBtn" class="btn">Exportar JSON</button>
+      <label class="btn file-btn" for="importInput">Importar JSON</label>
+      <input id="importInput" type="file" accept="application/json" hidden />
+    </section>
+
+    <section class="history card">
+      <h2>Historial</h2>
+      <select id="historySelect" aria-label="Seleccionar fecha del historial"></select>
+      <button id="loadHistoryBtn" class="btn">Ver día seleccionado</button>
+      <button id="backTodayBtn" class="btn">Volver a hoy</button>
+    </section>
+
+    <section id="groupsContainer" class="groups"></section>
+  </main>
+
+  <dialog id="supplementDialog">
+    <form id="supplementForm" method="dialog" class="dialog-form">
+      <h3 id="dialogTitle">Agregar suplemento</h3>
+      <input type="hidden" id="supplementId" />
+
+      <label>Nombre
+        <input id="nameInput" required maxlength="80" />
+      </label>
+
+      <label>Cantidad / dosis
+        <input id="doseInput" required maxlength="80" />
+      </label>
+
+      <label>Momento del día
+        <select id="timeInput" required>
+          <option value="Mañana con desayuno">Mañana con desayuno</option>
+          <option value="Mediodía con comida">Mediodía con comida</option>
+          <option value="Post-entrenamiento o flexible">Post-entrenamiento o flexible</option>
+          <option value="Tarde / relajación">Tarde / relajación</option>
+          <option value="Noche opcional">Noche opcional</option>
+        </select>
+      </label>
+
+      <label>Notas (opcional)
+        <textarea id="notesInput" rows="2" maxlength="200"></textarea>
+      </label>
+
+      <label class="checkline">
+        <input type="checkbox" id="optionalInput" />
+        Marcar como opcional
+      </label>
+
+      <div class="dialog-actions">
+        <button type="button" id="cancelDialogBtn" class="btn">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="script.js"></script>
+</body>
+</html>
